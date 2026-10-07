@@ -22,8 +22,9 @@ that supports `Range` requests (GitHub Pages, S3, R2, nginx, Caddy, …).
 
 `zip/5l69cr5dp7.pdf` is *ARCHIVI & COMPUTER. Automazione e beni culturali*,
 anno V, fascicolo 1/1995 (106 pages, Direzione generale Archivi). It was converted with
-[`mkiiif`](#build) into a IIIF Presentation 3 manifest plus level 0 tiles for
-every page, then zipped:
+[`mkiiif`](https://github.com/atomotic/iiif/tree/main/cmd/mkiiif)
+([blog post](https://literarymachin.es/mkiiif/)) into a IIIF Presentation 3
+manifest plus level 0 tiles for every page, then zipped:
 
 | | |
 |---|---|
@@ -99,7 +100,8 @@ Caddyfile             local server that mirrors the GitHub Pages layout (/swiiif
 
 ## Build
 
-Requirements: `mkiiif` (uses `mutool` to render
+Requirements: [`mkiiif`](https://github.com/atomotic/iiif/tree/main/cmd/mkiiif)
+(see [mkiiif](https://literarymachin.es/mkiiif/) on literarymachin.es; it uses `mutool` to render
 the PDF and `vips` ≥ 8.17.1 to cut the tiles), `zip`, and
 [`just`](https://github.com/casey/just).
 
