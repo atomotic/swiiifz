@@ -149,22 +149,6 @@ just serve                                   # http://localhost:8080/swiiifz/
 Run `just build` again (production base) before you commit. Otherwise the
 published manifest points at localhost.
 
-## Deploy to GitHub Pages
-
-```sh
-git init && git add . && git commit -m "swiiifz demo"
-git branch -M main
-git remote add origin git@github.com:atomotic/swiiifz.git
-git push -u origin main
-```
-
-Then go to **Settings → Pages → Build and deployment → Deploy from a branch → `main` / `/ (root)`**.
-
-GitHub Pages works for this. It answers `Range` with `206`, supports suffix ranges
-(`bytes=-N`), sends a strong `ETag` and honours `If-Range`. It serves files with
-`Cache-Control: max-age=600`, so an updated `sw.js` can take up to 10 minutes to
-reach browsers.
-
 ## Trade-offs
 
 Compared with publishing the 1910 files directly:
