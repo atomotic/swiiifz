@@ -1,0 +1,13 @@
+# Mirrors GitHub Pages layout: the site lives under /swiiifz/
+http://localhost:8080 {
+	redir / /swiiifz/
+
+	handle_path /swiiifz/* {
+		root * .
+		file_server
+
+		# always revalidate the worker so edits to sw.js take effect
+		@sw path /sw.js
+		header @sw Cache-Control "no-cache"
+	}
+}

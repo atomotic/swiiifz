@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>swiiifz</title>
+        <meta name="description" content="IIIF Image API level 0 served from a single zip file by a Service Worker, using HTTP Range requests." />
+        <script src="https://unpkg.com/triiiceratops@1.2.0/dist/triiiceratops-element.iife.js"></script>
+        <style>
+            * { box-sizing: border-box; }
+            html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
+            body { display: flex; flex-direction: column; }
+            header { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline;
+                     padding: 8px 16px; background: #111; color: #eee; font-size: 14px; }
+            header h1 { margin: 0; font-size: 16px; }
+            header a { color: #9cf; }
+            header .spacer { flex: 1; }
+            #status { color: #aaa; font-size: 12px; }
+            triiiceratops-viewer { display: block; flex: 1; min-height: 0; }
+        </style>
+    </head>
+    <body>
+        <header>
+            <h1>swiiifz</h1>
+            <span>IIIF tiles served from <a href="zip/5l69cr5dp7.zip">one zip file</a> by a Service Worker
+                (<a href="zip/5l69cr5dp7.pdf">source PDF</a>)</span>
+            <span class="spacer"></span>
+            <span id="status">starting service worker…</span>
+            <a href="https://github.com/atomotic/swiiifz">source</a>
+        </header>
+        <triiiceratops-viewer
+            id="viewer"
+            theme="light"
+            config='{
+              "renderer": { "maxZoomPixelRatio": 4, "zoomPerWheelNotch": 1.5 },
+              "showToggle": true,
+              "toolbarOpen": false,
+              "showCanvasNav": true,
+              "showZoomControls": true,
+              "viewingMode": "individuals",
+              "toolbar": {
+                "showSearch": false,
+                "showGallery": true,
+                "showAnnotations": false,
+                "showFullscreen": true,
+                "showInfo": true,
+                "showViewingMode": true
+              },
+              "gallery": { "open": true, "dockPosition": "top", "size": 102 }
+            }'
+        ></triiiceratops-viewer>
+
+        <script type="module">
+            // manifest.json does not exist as a file: sw.js reads it out of zip/5l69cr5dp7.zip.
+            const MANIFEST = new URL('5l69cr5dp7/manifest.json', location.href).href;
+            const status = document.getElementById('status');
+
+            if (!('serviceWorker' in navigator)) {
+                status.textContent = 'Service Workers not supported (need https or localhost)';
+                throw new Error('no service worker');
+            }
+
+            await navigator.serviceWorker.register('./sw.js', { scope: './' });
+            await navigator.serviceWorker.ready;
+            // First visit: wait until the worker controls this page, or its fetches bypass it.
+            if (!navigator.serviceWorker.controller) {
+                await new Promise((resolve) =>
+                    navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true }),
+                );
+            }
+
+            status.textContent = 'service worker active';
+            document.getElementById('viewer').setAttribute('manifest-id', MANIFEST);
+        </script>
+    </body>
+</html>
