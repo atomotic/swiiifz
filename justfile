@@ -6,7 +6,7 @@ pages := "https://atomotic.github.io/swiiifz"
 default:
     @just --list
 
-# PDF -> IIIF level 0 tree (build/<id>) -> zip/<id>.zip; base must be the URL the site is served from
+# PDF -> IIIF level 0 tree (build/<id>) -> zip/<id>.zip; sw.js rewrites base to wherever the site is served
 build base=pages:
     rm -rf build zip/{{id}}.zip
     mkdir -p build
@@ -14,6 +14,6 @@ build base=pages:
     cd build && zip -0 -r -q -X -D ../zip/{{id}}.zip {{id}} -x '*.DS_Store'
     @unzip -l zip/{{id}}.zip | tail -1
 
-# serve on http://localhost:8080/swiiifz/ (run `just build http://localhost:8080/swiiifz` first)
+# serve on http://localhost:8080/swiiifz/
 serve:
     caddy run --config Caddyfile --adapter caddyfile

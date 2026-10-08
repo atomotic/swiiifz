@@ -8,8 +8,13 @@
 //
 // Zips must be written with stored entries (zip -0 -X) for images; deflated
 // entries (e.g. JSON) are inflated with DecompressionStream. No ZIP64.
+//
+// JSON and HTML entries have their absolute URLs rewritten to this scope: any
+// "http(s)://<whatever>/<id>" becomes "<scope><id>", so a zip built with
+// mkiiif -base https://a.example/x also works at https://b.example/y/.
 
-const SCOPE = new URL(self.registration.scope).pathname; // e.g. "/swiiifz/"
+const SCOPE_URL = self.registration.scope; // e.g. "https://atomotic.github.io/swiiifz/"
+const SCOPE = new URL(SCOPE_URL).pathname; // e.g. "/swiiifz/"
 const ZIP_DIR = 'zip'; // zips live in <scope>zip/<id>.zip
 const MAX_EOCD = 22 + 0xffff; // EOCD record + max comment length
 const LOCAL_SLACK = 1024; // guess for local-header extra field, saves a request
@@ -45,7 +50,7 @@ async function serve(id, path, request) {
         const entry = zip.entries.get(path) ?? zip.entries.get(path.replace(/\/$/, '') + '/index.html');
         if (!entry) return new Response('Not found in zip', { status: 404 });
         try {
-            const body = await readEntry(zip, entry);
+            const body = rebase(await readEntry(zip, entry), entry, id);
             return new Response(body, {
                 headers: {
                     'content-type': mime(entry.name),
@@ -149,6 +154,20 @@ async function inflate(data, entry) {
         return new Uint8Array(await new Response(stream).arrayBuffer());
     }
     throw new Error(`${entry.name}: unsupported compression method ${entry.method}`);
+}
+
+const REBASE_TYPES = /\.(json|html?)$/i;
+const encoder = new TextEncoder();
+
+// Point absolute URLs ending in /<id> or /<id>/… (whatever base the zip was
+// built with) at this worker's scope, so the viewer's follow-up requests come back here.
+function rebase(body, entry, id) {
+    if (!REBASE_TYPES.test(entry.name)) return body;
+    const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`https?://[^"'\\s<>]*?/${escaped}(?=[/"'?#<\\s]|$)`, 'g');
+    const text = new TextDecoder().decode(body);
+    const rebased = text.replace(pattern, SCOPE_URL + id);
+    return rebased === text ? body : encoder.encode(rebased);
 }
 
 function mime(name) {

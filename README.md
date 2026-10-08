@@ -10,7 +10,7 @@ Demo: <https://atomotic.github.io/swiiifz/>
 A IIIF Image API level 0 tree (one `info.json` and thousands of pre-cut tiles per
 image) plus its Presentation manifest normally means thousands of small files to
 upload, version and keep in sync. swiiifz keeps the whole tree inside **one
-uncompressed zip** on any static host, and a ~170-line Service Worker turns it back
+uncompressed zip** on any static host, and a ~190-line Service Worker turns it back
 into ordinary IIIF URLs in the browser. It reads each file out of the zip with an
 HTTP `Range` request.
 
@@ -20,6 +20,11 @@ like any other IIIF resource, and the worker answers.
 
 No server code, no build step on the host, no index file. You only need a host
 that supports `Range` requests (GitHub Pages, S3, R2, nginx, Caddy, …).
+
+The zip is **portable**: it doesn't matter which base URL it was built with. Copy
+`index.html`, `sw.js` and `zip/` to any host and path (`https://example.org/`,
+`https://example.org/some/dir/`, `http://localhost:8080/swiiifz/`) and it works
+there without a rebuild.
 
 ## The demo
 
@@ -84,6 +89,16 @@ GET 5l69cr5dp7/page-001/…jpg ──► index already in memory:
 5. **Compression.** Entries should be *stored* (`zip -0`), because JPEG tiles
    don't compress further. Deflated entries still work: the worker inflates
    them with `DecompressionStream('deflate-raw')`.
+6. **Portability.** IIIF ids are absolute URLs, so they carry the `-base` the zip
+   was built with, and the viewer requests tiles at exactly those URLs. The
+   worker only intercepts its own origin, so a zip built for
+   `https://atomotic.github.io/swiiifz` would make a copy on another host fetch
+   its tiles from GitHub Pages, where they don't exist as files. To avoid this,
+   the worker rewrites JSON and HTML entries as it serves them: every
+   `http(s)://<anything>/<id>` or `http(s)://<anything>/<id>/…` URL becomes
+   `<scope><id>…`, where `<scope>` is the worker's own URL. The manifest,
+   `info.json` files and the zip's own viewer page then point back at the host
+   that is serving them. Tiles and other binary entries are served untouched.
 
 Once a zip is open, each tile costs one HTTP request of about the tile's size, the
 same as serving static tiles.
@@ -124,9 +139,10 @@ Requirements for the zip:
 
 - **The top-level folder is the id.** `<id>.zip` must contain `<id>/…`, so that entry
   names match URL paths below the scope.
-- **`-base` is the URL the site is served from.** IIIF ids are absolute, and the
-  viewer requests tiles at exactly those URLs. The worker only intercepts its own
-  origin, so the base has to match the host.
+- **`-base` can be any URL.** The worker rewrites it to its own scope at serve
+  time (see [Portability](#how-it-works)), so the same zip works on every host.
+  Pick the canonical public URL, so the ids are meaningful when the files are
+  read outside the worker (e.g. with `unzip`).
 - **`-0`**: store entries without compression, so a tile is a plain byte range.
 - **`-X`**: leave out extra fields, so the local header is small and predictable.
 - **`-D`**: leave out directory entries. This gives fewer entries and a smaller
@@ -139,18 +155,30 @@ Requirements for the zip:
 To add another document, drop `<newid>.zip` (built the same way) into `zip/` and
 point a viewer at `<newid>/manifest.json`. `sw.js` needs no changes.
 
+## Deploy elsewhere
+
+Copy `index.html`, `sw.js` and `zip/` into any directory of a static site, e.g.
+
+```sh
+git clone --depth 1 https://github.com/atomotic/swiiifz /tmp/swiiifz
+rsync -a --exclude .git /tmp/swiiifz/ /var/www/example.org/swiiifz/
+```
+
+and open `https://example.org/swiiifz/`. No rebuild is needed. The host must
+answer `Range` requests with `206` and should send an `ETag`. Don't publish the
+`.git` directory.
+
 ## Run locally
 
 Service Workers need `https` or `localhost`, and the host must answer `Range`
 requests with `206`. `python -m http.server` doesn't, so the recipe uses Caddy:
 
 ```sh
-just build http://localhost:8080/swiiifz     # manifest ids must point at localhost
 just serve                                   # http://localhost:8080/swiiifz/
 ```
 
-Run `just build` again (production base) before you commit. Otherwise the
-published manifest points at localhost.
+The committed zip works locally as is: its `https://atomotic.github.io/swiiifz`
+ids are rewritten to `http://localhost:8080/swiiifz/`.
 
 ## Trade-offs
 
@@ -160,6 +188,11 @@ Compared with publishing the 1910 files directly:
   file-count limits, and git and the host's CDN stay happy.
 - **+** Swapping the zip is atomic: the `ETag`/`If-Range` check stops readers
   from mixing old and new bytes.
+- **+** Portable: the same zip works on any host and path, with no rebuild.
+- **−** Because of the rewrite, a manifest's `id` depends on where it's served
+  from. Two copies of the same zip publish two different ids for the same object.
+  Any absolute URL in a JSON or HTML entry that ends in `/<id>` or contains
+  `/<id>/` is rewritten, even if it points at another site.
 - **−** The first view costs 2 extra round trips plus the central directory
   (about 100 bytes per entry, roughly 190 KB here), plus the Service Worker's
   start-up time.
