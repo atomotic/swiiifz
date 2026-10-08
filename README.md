@@ -1,5 +1,8 @@
 # swiiifz
 
+> **sw** · **iiif** · **z** = **S**ervice **W**orker · **IIIF** · **Z**ipped
+> (pronounced *"swiff-zee"*)
+
 **Static IIIF from a single zip file, served by a Service Worker.**
 
 Demo: <https://atomotic.github.io/swiiifz/>
