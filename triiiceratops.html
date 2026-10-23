@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>swiiifz · triiiceratops</title>
+        <meta name="description" content="IIIF Image API level 0 served from a single zip file by a Service Worker, shown in triiiceratops." />
+        <script src="https://unpkg.com/triiiceratops@1.2.0/dist/triiiceratops-element.iife.js"></script>
+        <link rel="stylesheet" href="viewer.css" />
+    </head>
+    <body>
+        <header>
+            <h1><a href="./">sw<span class="iiif"><span>i</span><span>i</span><span>i</span><span>f</span></span>z</a></h1>
+            <span>triiiceratops · IIIF tiles served from <a href="zip/5l69cr5dp7.zip">one zip file</a> by a Service Worker
+                (<a href="zip/5l69cr5dp7.pdf">source PDF</a>)</span>
+            <span class="spacer"></span>
+            <span id="status">starting service worker…</span>
+            <a href="https://github.com/atomotic/swiiifz">source</a>
+        </header>
+        <triiiceratops-viewer
+            id="viewer"
+            theme="light"
+            config='{
+              "renderer": { "maxZoomPixelRatio": 4, "zoomPerWheelNotch": 1.5 },
+              "showToggle": true,
+              "toolbarOpen": false,
+              "showCanvasNav": true,
+              "showZoomControls": true,
+              "viewingMode": "individuals",
+              "toolbar": {
+                "showSearch": false,
+                "showGallery": true,
+                "showAnnotations": false,
+                "showFullscreen": true,
+                "showInfo": true,
+                "showViewingMode": true
+              },
+              "gallery": { "open": true, "dockPosition": "top", "size": 102 }
+            }'
+        ></triiiceratops-viewer>
+
+        <script type="module">
+            import { ready } from './boot.js';
+
+            const manifest = await ready();
+            document.getElementById('viewer').setAttribute('manifest-id', manifest);
+        </script>
+    </body>
+</html>

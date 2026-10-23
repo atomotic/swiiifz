@@ -5,72 +5,68 @@
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>swiiifz</title>
         <meta name="description" content="IIIF Image API level 0 served from a single zip file by a Service Worker, using HTTP Range requests." />
-        <script src="https://unpkg.com/triiiceratops@1.2.0/dist/triiiceratops-element.iife.js"></script>
         <style>
             * { box-sizing: border-box; }
-            html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
-            body { display: flex; flex-direction: column; }
-            header { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline;
-                     padding: 8px 16px; background: #111; color: #eee; font-size: 14px; }
-            header h1 { margin: 0; font-size: 16px; }
-            header a { color: #9cf; }
-            header .spacer { flex: 1; }
-            #status { color: #aaa; font-size: 12px; }
-            triiiceratops-viewer { display: block; flex: 1; min-height: 0; }
+            body { margin: 0 auto; max-width: 42rem; padding: 24px 16px; font-family: system-ui, sans-serif;
+                   line-height: 1.5; color: #222; background: #fff; }
+            h1 { margin: 0 0 4px; }
+            .iiif span:nth-child(odd) { color: #0075a4; }  /* IIIF logo colors */
+            .iiif span:nth-child(even) { color: #ee2635; }
+            h1 + p { margin-top: 0; color: #666; }
+            a { color: #06c; }
+            code { font-size: 0.9em; }
+            ul.viewers { padding: 0; list-style: none; display: grid; gap: 8px; }
+            ul.viewers a { display: block; padding: 12px 16px; border: 1px solid #ccc; border-radius: 6px;
+                           text-decoration: none; }
+            ul.viewers a:hover { border-color: #06c; background: #f4f8fc; }
+            ul.viewers span { color: #666; font-size: 0.9em; }
+            #status { font-size: 0.9em; color: #888; }
+            footer { margin-top: 32px; font-size: 0.9em; color: #666; }
         </style>
     </head>
     <body>
-        <header>
-            <h1>swiiifz</h1>
-            <span>IIIF tiles served from <a href="zip/5l69cr5dp7.zip">one zip file</a> by a Service Worker
-                (<a href="zip/5l69cr5dp7.pdf">source PDF</a>)</span>
-            <span class="spacer"></span>
-            <span id="status">starting service worker…</span>
-            <a href="https://github.com/atomotic/swiiifz">source</a>
-        </header>
-        <triiiceratops-viewer
-            id="viewer"
-            theme="light"
-            config='{
-              "renderer": { "maxZoomPixelRatio": 4, "zoomPerWheelNotch": 1.5 },
-              "showToggle": true,
-              "toolbarOpen": false,
-              "showCanvasNav": true,
-              "showZoomControls": true,
-              "viewingMode": "individuals",
-              "toolbar": {
-                "showSearch": false,
-                "showGallery": true,
-                "showAnnotations": false,
-                "showFullscreen": true,
-                "showInfo": true,
-                "showViewingMode": true
-              },
-              "gallery": { "open": true, "dockPosition": "top", "size": 102 }
-            }'
-        ></triiiceratops-viewer>
+        <h1>sw<span class="iiif"><span>i</span><span>i</span><span>i</span><span>f</span></span>z</h1>
+        <p>IIIF from a single zip file, served by a Service Worker</p>
+
+        <p>
+            A whole IIIF tree (a Presentation 3 manifest plus level 0 tiles for every page) lives in
+            <a href="zip/5l69cr5dp7.zip">one stored zip file</a> on a static host. A Service Worker
+            (<a href="sw.js"><code>sw.js</code></a>) answers the viewer's requests for
+            <code>manifest.json</code>, <code>info.json</code> and tiles by reading the zip's central
+            directory once, then fetching each entry with an HTTP <code>Range</code> request.
+            No server code, no unpacking, no build step on the host.
+        </p>
+        <p>
+            The document is <em>ARCHIVI &amp; COMPUTER</em>, anno V, fascicolo 1/1995
+            (<a href="zip/5l69cr5dp7.pdf">source PDF</a>), converted with
+            <a href="https://github.com/atomotic/iiif/tree/main/cmd/mkiiif">mkiiif</a>.
+            The same manifest opens in different viewers, to check that each one works through the
+            Service Worker:
+        </p>
+
+        <ul class="viewers">
+            <li><a href="triiiceratops.html">triiiceratops <span>1.2.0</span></a></li>
+            <li><a href="mirador.html">Mirador <span>4.3.0</span></a></li>
+            <li><a href="uv.html">Universal Viewer <span>4.4.4</span></a></li>
+            <li><a href="tify.html">TIFY <span>0.36.2</span></a></li>
+            <li><a href="clover.html">Clover IIIF <span>3.17.0</span></a></li>
+        </ul>
+
+        <p>Open DevTools → Network to watch it: each tile appears as a virtual request answered by the
+            Service Worker, plus a <code>206 Partial Content</code> request for its bytes in the zip.</p>
+
+        <p id="status">starting service worker…</p>
+
+        <footer>
+            <a href="https://github.com/atomotic/swiiifz">source</a> ·
+            <a href="https://literarymachin.es/mkiiif/">mkiiif blog post</a>
+        </footer>
 
         <script type="module">
-            // manifest.json does not exist as a file: sw.js reads it out of zip/5l69cr5dp7.zip.
-            const MANIFEST = new URL('5l69cr5dp7/manifest.json', location.href).href;
-            const status = document.getElementById('status');
+            // Register early, so the worker is already running when a viewer page opens.
+            import { ready } from './boot.js';
 
-            if (!('serviceWorker' in navigator)) {
-                status.textContent = 'Service Workers not supported (need https or localhost)';
-                throw new Error('no service worker');
-            }
-
-            await navigator.serviceWorker.register('./sw.js', { scope: './' });
-            await navigator.serviceWorker.ready;
-            // First visit: wait until the worker controls this page, or its fetches bypass it.
-            if (!navigator.serviceWorker.controller) {
-                await new Promise((resolve) =>
-                    navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true }),
-                );
-            }
-
-            status.textContent = 'service worker active';
-            document.getElementById('viewer').setAttribute('manifest-id', MANIFEST);
+            ready();
         </script>
     </body>
 </html>

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>swiiifz · Clover</title>
+        <meta name="description" content="IIIF Image API level 0 served from a single zip file by a Service Worker, shown in Clover IIIF." />
+        <script src="https://cdn.jsdelivr.net/npm/@samvera/clover-iiif@3.17.0/dist/web-components/index.umd.js"></script>
+        <link rel="stylesheet" href="viewer.css" />
+        <style>
+            #viewer { overflow: auto; }
+        </style>
+    </head>
+    <body>
+        <header>
+            <h1><a href="./">sw<span class="iiif"><span>i</span><span>i</span><span>i</span><span>f</span></span>z</a></h1>
+            <span>Clover IIIF · IIIF tiles served from <a href="zip/5l69cr5dp7.zip">one zip file</a> by a Service Worker
+                (<a href="zip/5l69cr5dp7.pdf">source PDF</a>)</span>
+            <span class="spacer"></span>
+            <span id="status">starting service worker…</span>
+            <a href="https://github.com/atomotic/swiiifz">source</a>
+        </header>
+        <div id="viewer"></div>
+
+        <script type="module">
+            import { ready } from './boot.js';
+
+            const manifest = await ready();
+            // Created only now, with all attributes set: the element JSON.parse()s "options"
+            // on first render (throws if it is missing), and should not render without a manifest.
+            const clover = document.createElement('clover-viewer');
+            clover.setAttribute('options', JSON.stringify({ canvasHeight: '65vh' }));
+            clover.setAttribute('iiif-content', manifest);
+            document.getElementById('viewer').append(clover);
+        </script>
+    </body>
+</html>
