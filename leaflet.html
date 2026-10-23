@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>swiiifz · Leaflet-IIIF</title>
+        <meta name="description" content="IIIF Image API level 0 served from a single zip file by a Service Worker, shown in Leaflet with Leaflet-IIIF." />
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/leaflet-iiif@3.0.0/leaflet-iiif.js"></script>
+        <link rel="stylesheet" href="viewer.css" />
+        <style>
+            #viewer { background: #333; }
+            #pager { display: flex; gap: 4px; align-items: center; }
+            #pager button, #pager select { font: inherit; font-size: 12px; }
+        </style>
+    </head>
+    <body>
+        <header>
+            <h1><a href="./">sw<span class="iiif"><span>i</span><span>i</span><span>i</span><span>f</span></span>z</a></h1>
+            <span>Leaflet-IIIF · IIIF tiles served from <a href="zip/5l69cr5dp7.zip">one zip file</a> by a Service Worker
+                (<a href="zip/5l69cr5dp7.pdf">source PDF</a>)</span>
+            <span id="pager">
+                <button id="prev" type="button" aria-label="previous page">‹</button>
+                <select id="page" aria-label="page"></select>
+                <button id="next" type="button" aria-label="next page">›</button>
+            </span>
+            <span class="spacer"></span>
+            <span id="status">starting service worker…</span>
+            <a href="https://github.com/atomotic/swiiifz">source</a>
+        </header>
+        <div id="viewer"></div>
+
+        <script type="module">
+            import { ready } from './boot.js';
+
+            // Leaflet-IIIF asks for the whole image as "0,0,w,h/…"; the canonical region (the
+            // only one a level 0 tree has as a file) is "full".
+            const tileUrl = L.TileLayer.Iiif.prototype.getTileUrl;
+            L.TileLayer.Iiif.include({
+                getTileUrl(coords) {
+                    return tileUrl.call(this, coords).replace(`/0,0,${this.x},${this.y}/`, '/full/');
+                },
+            });
+
+            const manifest = await (await fetch(await ready())).json();
+
+            // One entry per canvas: its label and the info.json of its image service.
+            const pages = manifest.items.map((canvas) => {
+                const service = [].concat(canvas.items[0].items[0].body.service)[0];
+                const label = Object.values(canvas.label ?? {})[0]?.[0] ?? canvas.id;
+                return { label, info: `${service.id ?? service['@id']}/info.json` };
+            });
+
+            const map = L.map('viewer', { crs: L.CRS.Simple, center: [0, 0], zoom: 0, attributionControl: false });
+            const select = document.getElementById('page');
+            select.append(...pages.map((page, i) => new Option(page.label, i)));
+
+            let layer;
+            function show(i) {
+                i = Math.max(0, Math.min(pages.length - 1, i));
+                select.value = i;
+                if (layer) map.removeLayer(layer);
+                layer = L.tileLayer.iiif(pages[i].info).addTo(map);
+            }
+
+            select.addEventListener('change', () => show(Number(select.value)));
+            document.getElementById('prev').addEventListener('click', () => show(Number(select.value) - 1));
+            document.getElementById('next').addEventListener('click', () => show(Number(select.value) + 1));
+            show(0);
+        </script>
+    </body>
+</html>

@@ -44,8 +44,10 @@ manifest plus level 0 tiles for every page, then zipped:
 the Service Worker: [triiiceratops](https://www.npmjs.com/package/triiiceratops)
 (`triiiceratops.html`), [Mirador](https://projectmirador.org/) 4 (`mirador.html`),
 [Universal Viewer](https://universalviewer.io/) 4 (`uv.html`),
-[TIFY](https://tify.rocks/) (`tify.html`) and
-[Clover IIIF](https://samvera-labs.github.io/clover-iiif/) (`clover.html`).
+[TIFY](https://tify.rocks/) (`tify.html`),
+[Clover IIIF](https://samvera-labs.github.io/clover-iiif/) (`clover.html`) and
+[Leaflet-IIIF](https://github.com/mejackreed/Leaflet-IIIF) (`leaflet.html`, Image API
+only: the page reads the manifest itself and shows one page at a time).
 
 Open DevTools → Network to watch it work. Every tile shows up twice: once as the
 virtual request answered by the Service Worker (response header
@@ -114,6 +116,7 @@ mirador.html          the manifest in Mirador 4
 uv.html               the manifest in Universal Viewer 4
 tify.html             the manifest in TIFY
 clover.html           the manifest in Clover IIIF
+leaflet.html          the pages' image services in Leaflet-IIIF
 boot.js               shared by the pages: registers sw.js, waits until it controls the page
 viewer.css            shared layout of the viewer pages
 sw.js                 the Service Worker (the whole idea is in this file)
