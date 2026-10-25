@@ -26,12 +26,17 @@
     </head>
     <body>
         <h1>sw<span class="iiif"><span>i</span><span>i</span><span>i</span><span>f</span></span>z</h1>
-        <p>IIIF from a single zip file, served by a Service Worker</p>
+        <p>
+            <strong>sw</strong> · <strong>iiif</strong> · <strong>z</strong> =
+            <strong>S</strong>ervice <strong>W</strong>orker · <strong>IIIF</strong> · <strong>Z</strong>ipped
+            (pronounced <em>“swiff-zee”</em>)<br />
+            IIIF from a single zip file, served by a Service Worker
+        </p>
 
         <p>
             A whole IIIF tree (a Presentation 3 manifest plus level 0 tiles for every page) lives in
             <a href="zip/5l69cr5dp7.zip">one stored zip file</a> on a static host. A Service Worker
-            (<a href="sw.js"><code>sw.js</code></a>) answers the viewer's requests for
+            (<a href="lib/swiiifz-sw.js"><code>lib/swiiifz-sw.js</code></a>, mounted with <a href="lib/swiiifz.js"><code>lib/swiiifz.js</code></a>) answers the viewer's requests for
             <code>manifest.json</code>, <code>info.json</code> and tiles by reading the zip's central
             directory once, then fetching each entry with an HTTP <code>Range</code> request.
             No server code, no unpacking, no build step on the host.
@@ -45,12 +50,12 @@
         </p>
 
         <ul class="viewers">
-            <li><a href="triiiceratops.html">triiiceratops <span>1.2.0</span></a></li>
-            <li><a href="mirador.html">Mirador <span>4.3.0</span></a></li>
-            <li><a href="uv.html">Universal Viewer <span>4.4.4</span></a></li>
-            <li><a href="tify.html">TIFY <span>0.36.2</span></a></li>
-            <li><a href="clover.html">Clover IIIF <span>3.17.0</span></a></li>
-            <li><a href="leaflet.html">Leaflet-IIIF <span>3.0.0 · Image API only, one page at a time</span></a></li>
+            <li><a href="viewers/triiiceratops.html">triiiceratops <span>1.2.0</span></a></li>
+            <li><a href="viewers/mirador.html">Mirador <span>4.3.0</span></a></li>
+            <li><a href="viewers/uv.html">Universal Viewer <span>4.4.4</span></a></li>
+            <li><a href="viewers/tify.html">TIFY <span>0.36.2</span></a></li>
+            <li><a href="viewers/clover.html">Clover IIIF <span>3.17.0</span></a></li>
+            <li><a href="viewers/leaflet.html">Leaflet-IIIF <span>3.0.0 · Image API only, one page at a time</span></a></li>
         </ul>
 
         <p>Open DevTools → Network to watch it: each tile appears as a virtual request answered by the
@@ -65,9 +70,13 @@
 
         <script type="module">
             // Register early, so the worker is already running when a viewer page opens.
-            import { ready } from './boot.js';
+            import { register } from './lib/swiiifz.js';
 
-            ready();
+            const status = document.getElementById('status');
+            register('./sw.js').then(
+                () => (status.textContent = 'service worker active'),
+                (error) => (status.textContent = error.message),
+            );
         </script>
     </body>
 </html>

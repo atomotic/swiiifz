@@ -17,22 +17,21 @@
     </head>
     <body>
         <header>
-            <h1><a href="./">sw<span class="iiif"><span>i</span><span>i</span><span>i</span><span>f</span></span>z</a></h1>
-            <span>Leaflet-IIIF · IIIF tiles served from <a href="zip/5l69cr5dp7.zip">one zip file</a> by a Service Worker
-                (<a href="zip/5l69cr5dp7.pdf">source PDF</a>)</span>
+            <h1><a href="../">sw<span class="iiif"><span>i</span><span>i</span><span>i</span><span>f</span></span>z</a></h1>
+            <span>Leaflet-IIIF · IIIF tiles served from <a href="../zip/5l69cr5dp7.zip">one zip file</a> by a Service Worker
+                (<a href="../zip/5l69cr5dp7.pdf">source PDF</a>)</span>
             <span id="pager">
                 <button id="prev" type="button" aria-label="previous page">‹</button>
                 <select id="page" aria-label="page"></select>
                 <button id="next" type="button" aria-label="next page">›</button>
             </span>
             <span class="spacer"></span>
-            <span id="status">starting service worker…</span>
             <a href="https://github.com/atomotic/swiiifz">source</a>
         </header>
         <div id="viewer"></div>
 
         <script type="module">
-            import { ready } from './boot.js';
+            import { open } from '../lib/swiiifz.js';
 
             // Leaflet-IIIF asks for the whole image as "0,0,w,h/…"; the canonical region (the
             // only one a level 0 tree has as a file) is "full".
@@ -43,7 +42,8 @@
                 },
             });
 
-            const manifest = await (await fetch(await ready())).json();
+            const zip = await open('../zip/5l69cr5dp7.zip', { sw: '../sw.js' });
+            const manifest = await (await fetch(zip.manifest)).json();
 
             // One entry per canvas: its label and the info.json of its image service.
             const pages = manifest.items.map((canvas) => {

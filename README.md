@@ -21,10 +21,56 @@ like any other IIIF resource, and the worker answers.
 No server code, no build step on the host, no index file. You only need a host
 that supports `Range` requests (GitHub Pages, S3, R2, nginx, Caddy, …).
 
-The zip is **portable**: it doesn't matter which base URL it was built with. Copy
-the `*.html` pages, `boot.js`, `viewer.css`, `sw.js` and `zip/` to any host and path (`https://example.org/`,
-`https://example.org/some/dir/`, `http://localhost:8080/swiiifz/`) and it works
-there without a rebuild.
+The zip is **portable**: it doesn't matter which base URL it was built with, or
+where it is hosted. Mount it from any page and it works there without a rebuild.
+
+## Use it as a library
+
+Two files in `lib/`:
+
+- `lib/swiiifz.js`: ES module for the page. It can be imported from anywhere,
+  including another origin.
+- `lib/swiiifz-sw.js`: the Service Worker core. A worker must be registered from
+  the page's own origin, so the site hosts a one-line `sw.js` that imports it:
+
+```js
+// sw.js, next to your page
+importScripts('https://atomotic.github.io/swiiifz/lib/swiiifz-sw.js');
+```
+
+```html
+<script type="module">
+    import { open } from 'https://atomotic.github.io/swiiifz/lib/swiiifz.js';
+
+    const zip = await open('https://example.org/data/5l69cr5dp7.zip'); // registers ./sw.js
+    Mirador.viewer({ id: 'viewer', windows: [{ manifestId: zip.manifest }] });
+</script>
+```
+
+`open(zipUrl, { sw = './sw.js', scope, manifest })` registers the worker, waits
+until it controls the page, lists the zip and resolves to:
+
+| | |
+|---|---|
+| `zip.manifest` | virtual URL of the manifest (`manifest.json` at the root, else the shallowest `<dir>/manifest.json`; override with `manifest: '<entry path>'`) |
+| `zip.url(path)` | virtual URL of any entry |
+| `zip.base` | virtual URL of the zip root |
+| `zip.entries` | entry names in the zip |
+| `zip.zip` | absolute URL of the zip |
+
+Call `open()` once per zip; any number of zips can be open at once. Virtual URLs
+look like `<scope>swiiifz/<base64url(zip url)>/<entry>`. The zip's address is
+part of the URL, so the worker needs no registry and keeps working after the
+browser stops and restarts it.
+
+The zip can be on another origin if that host sends CORS headers for it:
+`Access-Control-Allow-Origin`, `Access-Control-Allow-Headers: Range, If-Range`
+(the preflight) and `Access-Control-Expose-Headers: ETag, Content-Range`.
+
+A worker that already has its own `fetch` listener can still import the core.
+The core answers only `<scope>swiiifz/…` requests, and it also exposes
+`self.swiiifz.handle(request)`, which returns a `Promise<Response>` or
+`undefined`.
 
 ## The demo
 
@@ -40,18 +86,21 @@ manifest plus level 0 tiles for every page, then zipped:
 | IIIF tree | 1910 files, 46 MB |
 | `zip/5l69cr5dp7.zip` | **1 file**, 42 MB (stored, no compression) |
 
-`index.html` links one page per viewer, each opening the same manifest through
-the Service Worker: [triiiceratops](https://www.npmjs.com/package/triiiceratops)
+`index.html` links one page per viewer in `viewers/`. Each page opens the same
+zip with `open('../zip/5l69cr5dp7.zip', { sw: '../sw.js' })` and passes
+`zip.manifest` to its viewer: [triiiceratops](https://www.npmjs.com/package/triiiceratops)
 (`triiiceratops.html`), [Mirador](https://projectmirador.org/) 4 (`mirador.html`),
 [Universal Viewer](https://universalviewer.io/) 4 (`uv.html`),
 [TIFY](https://tify.rocks/) (`tify.html`),
 [Clover IIIF](https://samvera-labs.github.io/clover-iiif/) (`clover.html`) and
 [Leaflet-IIIF](https://github.com/mejackreed/Leaflet-IIIF) (`leaflet.html`, Image API
-only: the page reads the manifest itself and shows one page at a time).
+only: the page reads the manifest itself and shows one page at a time). The pages
+sit one level below `sw.js`, so they pass `sw: '../sw.js'`; the worker's scope is
+the site root, which covers them.
 
 Open DevTools → Network to watch it work. Every tile shows up twice: once as the
 virtual request answered by the Service Worker (response header
-`x-served-from: /swiiifz/zip/5l69cr5dp7.zip#<entry>`), and once as the `206 Partial Content`
+`x-served-from: https://atomotic.github.io/swiiifz/zip/5l69cr5dp7.zip#<entry>`), and once as the `206 Partial Content`
 request the worker sends to the zip.
 
 ## How it works
@@ -59,8 +108,9 @@ request the worker sends to the zip.
 ```
 browser / viewer                 sw.js                               static host
 ────────────────                 ─────                               ───────────
-GET 5l69cr5dp7/manifest.json ──► first request for id "5l69cr5dp7":
-                                   Range: bytes=-65557          ──►  zip/5l69cr5dp7.zip
+GET swiiifz/<b64>/5l69cr5dp7/manifest.json
+                             ──► first request for this zip url:
+                                   Range: bytes=-65557          ──►  <zip url>
                                    find End Of Central Directory ◄──  206 (tail of file)
                                    Range: <central directory>   ──►
                                    build Map name → offset/size  ◄──  206
@@ -68,18 +118,17 @@ GET 5l69cr5dp7/manifest.json ──► first request for id "5l69cr5dp7":
                                    Range: <local header + data> ──►
 ◄──────────────────── 200 JSON ◄── slice out the bytes           ◄──  206
 
-GET 5l69cr5dp7/page-001/…jpg ──► index already in memory:
+GET swiiifz/<b64>/5l69cr5dp7/page-001/…jpg
+                             ──► index already in memory:
                                    Range: <local header + data> ──►
 ◄──────────────────── 200 JPEG ◄──                               ◄──  206
 ```
 
-1. **Routing.** The worker is registered with scope `./`. A same-origin GET for
-   `<scope><id>/<path>` is treated as entry `<id>/<path>` inside
-   `<scope>zip/<id>.zip`. Paths without a slash (`index.html`, `sw.js`) and
-   anything under `zip/` go to the network unchanged. If no zip exists for an
-   `<id>`, the request also falls through to the network. Because everything is
-   relative to the scope, the same files work at a domain root or under
-   `/swiiifz/` on GitHub Pages.
+1. **Routing.** A GET for `<scope>swiiifz/<b64>/<path>` is treated as entry
+   `<path>` inside the zip whose URL is base64url-decoded from `<b64>`. A GET
+   for `<scope>swiiifz/<b64>/` itself returns `{zip, entries}` as JSON, which
+   `open()` uses to find the manifest. Every other request goes to the network
+   unchanged. Missing entries are `404`; a zip that can't be opened is `502`.
 2. **Opening a zip** costs 2 requests. The first fetches the last 64 KB to find
    the End Of Central Directory record. The second fetches the central directory
    and parses it into a `Map`. The worker keeps up to 32 open zips in an LRU.
@@ -100,7 +149,8 @@ GET 5l69cr5dp7/page-001/…jpg ──► index already in memory:
    its tiles from GitHub Pages, where they don't exist as files. To avoid this,
    the worker rewrites JSON and HTML entries as it serves them: every
    `http(s)://<anything>/<id>` or `http(s)://<anything>/<id>/…` URL becomes
-   `<scope><id>…`, where `<scope>` is the worker's own URL. The manifest,
+   `<scope>swiiifz/<b64>/<id>…`, where `<id>` is the entry's top-level folder.
+   Entries at the zip root are not rewritten. The manifest,
    `info.json` files and the zip's own viewer page then point back at the host
    that is serving them. Tiles and other binary entries are served untouched.
 
@@ -110,16 +160,19 @@ same as serving static tiles.
 ## Layout
 
 ```
-index.html            landing page: what this is, links to the viewer pages
-triiiceratops.html    the manifest in triiiceratops
-mirador.html          the manifest in Mirador 4
-uv.html               the manifest in Universal Viewer 4
-tify.html             the manifest in TIFY
-clover.html           the manifest in Clover IIIF
-leaflet.html          the pages' image services in Leaflet-IIIF
-boot.js               shared by the pages: registers sw.js, waits until it controls the page
-viewer.css            shared layout of the viewer pages
-sw.js                 the Service Worker (the whole idea is in this file)
+index.html            landing page: what this is, links to the viewer pages; registers sw.js early
+lib/
+  swiiifz.js          page module: open(zipUrl) → { manifest, url(), … }
+  swiiifz-sw.js       Service Worker core (the whole idea is in this file)
+sw.js                 one-line worker: importScripts('./lib/swiiifz-sw.js')
+viewers/
+  triiiceratops.html  the manifest in triiiceratops
+  mirador.html        the manifest in Mirador 4
+  uv.html             the manifest in Universal Viewer 4
+  tify.html           the manifest in TIFY
+  clover.html         the manifest in Clover IIIF
+  leaflet.html        the pages' image services in Leaflet-IIIF
+  viewer.css          shared layout of the viewer pages
 zip/
   5l69cr5dp7.pdf      source document
   5l69cr5dp7.zip      IIIF tree: 5l69cr5dp7/{manifest.json,index.html,page-NNN/…}
@@ -149,8 +202,8 @@ cd build && zip -0 -r -q -X -D ../zip/5l69cr5dp7.zip 5l69cr5dp7
 
 Requirements for the zip:
 
-- **The top-level folder is the id.** `<id>.zip` must contain `<id>/…`, so that entry
-  names match URL paths below the scope.
+- **One top-level folder, named after the id** (`<id>/…`), so URL rewriting
+  knows which part of the ids to replace. The zip file itself can have any name.
 - **`-base` can be any URL.** The worker rewrites it to its own scope at serve
   time (see [Portability](#how-it-works)), so the same zip works on every host.
   Pick the canonical public URL, so the ids are meaningful when the files are
@@ -164,12 +217,12 @@ Requirements for the zip:
 
 `build/` is a scratch directory and is git-ignored.
 
-To add another document, drop `<newid>.zip` (built the same way) into `zip/` and
-point a viewer at `<newid>/manifest.json`. `sw.js` needs no changes.
+To add another document, build its zip the same way, put it anywhere and
+`open()` it. The worker needs no changes.
 
 ## Deploy elsewhere
 
-Copy the `*.html` pages, `boot.js`, `viewer.css`, `sw.js` and `zip/` into any directory of a static site, e.g.
+Copy `index.html`, `sw.js`, `lib/`, `viewers/` and `zip/` into any directory of a static site, e.g.
 
 ```sh
 git clone --depth 1 https://github.com/atomotic/swiiifz /tmp/swiiifz
@@ -190,7 +243,7 @@ just serve                                   # http://localhost:8080/swiiifz/
 ```
 
 The committed zip works locally as is: its `https://atomotic.github.io/swiiifz`
-ids are rewritten to `http://localhost:8080/swiiifz/`.
+ids are rewritten to `http://localhost:8080/swiiifz/swiiifz/<b64>/`.
 
 ## Trade-offs
 
